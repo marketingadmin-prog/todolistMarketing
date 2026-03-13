@@ -972,16 +972,28 @@ let state = {
   filterStatus: null,
 };
 
-try {
-  const saved = localStorage.getItem('wdash');
-  if (saved) { const s = JSON.parse(saved); state = {...state, ...s}; }
-} catch(e){}
+// API helpers
+const api = {
+  get: (url) => fetch(url).then(r => r.json()),
+  post: (url, body) => fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json()),
+  patch: (url, body) => fetch(url, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json()),
+  put: (url, body) => fetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json()),
+  del: (url) => fetch(url, { method:'DELETE' }).then(r => r.json()),
+};
 
-// Migrate old tasks without notes array
-state.tasks.forEach(t => { if (!t.notes) t.notes = []; });
-
-const save = () => {
-  try { localStorage.setItem('wdash', JSON.stringify(state)); } catch(e){}
+// Load all data from DB on startup
+const initApp = async () => {
+  document.getElementById('tasks-container').innerHTML = '<div class="empty-state">กำลังโหลดข้อมูล...</div>';
+  try {
+    const data = await api.get('/api/sync');
+    state.tasks = data.tasks || [];
+    state.goals = data.goals || {};
+  } catch(e) {
+    console.error('Load failed:', e);
+    document.getElementById('tasks-container').innerHTML = '<div class="empty-state" style="color:var(--social)">เชื่อมต่อ DB ไม่ได้ กรุณาตรวจสอบ server</div>';
+    return;
+  }
+  render();
 };
 
 // --- WEEK ---
@@ -1053,11 +1065,11 @@ const filterGroup = (g, el) => {
 const openModal = () => document.getElementById('modal').classList.add('show');
 const closeModal = () => document.getElementById('modal').classList.remove('show');
 
-const saveTask = () => {
+const saveTask = async () => {
   const name = document.getElementById('f-name').value.trim();
   if (!name) { alert('กรุณาใส่ชื่องาน'); return; }
   const related = [...document.querySelectorAll('.checkbox-group input:checked')].map(e => e.value);
-  state.tasks.push({
+  const newTask = {
     id: Date.now(),
     week: state.week,
     name,
@@ -1068,13 +1080,14 @@ const saveTask = () => {
     related,
     pct: parseInt(document.getElementById('f-pct').value) || 0,
     notes: [],
-  });
+  };
+  await api.post('/api/tasks', newTask);
+  state.tasks.push(newTask);
   document.getElementById('f-name').value = '';
   document.getElementById('f-desc').value = '';
   document.getElementById('f-pct').value = 0;
   document.getElementById('f-date').value = '';
   document.querySelectorAll('.checkbox-group input').forEach(e => e.checked = false);
-  save();
   closeModal();
   render();
 };
@@ -1097,35 +1110,36 @@ const renderGoalInputs = () => {
     </div>
   `).join('');
 };
-const saveGoals = () => {
+const saveGoals = async () => {
   const key = `w${state.week}`;
-  state.goals[key] = tmpGoals.filter(g => g.text.trim());
-  save();
+  const goals = tmpGoals.filter(g => g.text.trim());
+  const result = await api.put(`/api/goals/${key}`, { goals });
+  state.goals[key] = result;
   closeGoalModal();
   render();
 };
 
 // --- PROGRESS ---
-const adjustPct = (id, delta) => {
+const adjustPct = async (id, delta) => {
   const t = state.tasks.find(t => t.id === id);
   if (!t) return;
   t.pct = Math.max(0, Math.min(100, (t.pct || 0) + delta));
-  save();
+  await api.patch(`/api/tasks/${id}`, { pct: t.pct });
   render();
 };
 
-const toggleTask = (id) => {
+const toggleTask = async (id) => {
   const t = state.tasks.find(t => t.id === id);
   if (!t) return;
   t.pct = t.pct >= 100 ? 0 : 100;
-  save();
+  await api.patch(`/api/tasks/${id}`, { pct: t.pct });
   render();
 };
 
-const deleteTask = (id) => {
+const deleteTask = async (id) => {
   if (!confirm('ลบงานนี้?')) return;
+  await api.del(`/api/tasks/${id}`);
   state.tasks = state.tasks.filter(t => t.id !== id);
-  save();
   render();
 };
 
@@ -1191,7 +1205,7 @@ const renderNotesList = (t) => {
   }).join('');
 };
 
-const addNote = () => {
+const addNote = async () => {
   const text = document.getElementById('note-text').value.trim();
   const date = document.getElementById('note-date').value;
   if (!text) { alert('กรุณาใส่ข้อความบันทึก'); return; }
@@ -1202,8 +1216,9 @@ const addNote = () => {
   if (!t) return;
   if (!t.notes) t.notes = [];
 
-  t.notes.push({ id: Date.now(), date, text });
-  save();
+  const newNote = { id: Date.now(), date, text };
+  await api.post(`/api/tasks/${currentNoteTaskId}/notes`, newNote);
+  t.notes.push(newNote);
   render();
 
   document.getElementById('note-text').value = '';
@@ -1211,12 +1226,12 @@ const addNote = () => {
   renderNotesList(t);
 };
 
-const deleteNote = (noteId) => {
+const deleteNote = async (noteId) => {
   if (!confirm('ลบบันทึกนี้?')) return;
   const t = state.tasks.find(t => t.id === currentNoteTaskId);
   if (!t) return;
+  await api.del(`/api/notes/${noteId}`);
   t.notes = t.notes.filter(n => n.id !== noteId);
-  save();
   render();
   renderNotesList(t);
 };
@@ -1533,35 +1548,17 @@ const renderTask = (t, catColor) => {
   `;
 };
 
-const toggleGoal = (i) => {
+const toggleGoal = async (i) => {
   const key = `w${state.week}`;
   if (!state.goals[key]) return;
-  state.goals[key][i].done = !state.goals[key][i].done;
-  save();
+  const goal = state.goals[key][i];
+  const updated = await api.patch(`/api/goals/${goal.id}/toggle`, {});
+  goal.done = updated.done;
   render();
 };
 
-// Demo data
-if (!state.tasks.length) {
-  state.tasks = [
-    {id:1, week:1, name:'อัปเดต Landing Page โปรโมชั่นใหม่', desc:'แก้ไข banner และ content ส่วนหัว', category:'Website Operation', group:'ด่วน', date:'2026-03-15', related:['Website Operation','Graphics'], pct:60, notes:[
-      {id:101, date:'2026-03-11', text:'เริ่มออกแบบ layout ใหม่แล้ว รอ asset จาก Graphics'},
-      {id:102, date:'2026-03-12', text:'ได้รับ banner จากทีม Graphics แล้ว เริ่ม implement'},
-    ]},
-    {id:2, week:1, name:'ออกแบบ Banner โปรโมชั่นมีนาคม', desc:'ขนาด 1200x628px สำหรับ Facebook และ IG', category:'Graphics', group:'ด่วน', date:'2026-03-14', related:['Graphics','Social Media'], pct:85, notes:[
-      {id:201, date:'2026-03-10', text:'Draft แรกเสร็จแล้ว รอ feedback จาก supervisor'},
-    ]},
-    {id:3, week:1, name:'โพสต์ Content IG สัปดาห์นี้', desc:'3 โพสต์ตามแผน content calendar', category:'Social Media', group:'ปกติ', date:'2026-03-16', related:['Social Media','Content'], pct:30, notes:[]},
-    {id:4, week:1, name:'เขียนบทความ Blog SEO', desc:'หัวข้อ "5 เทรนด์ดีไซน์ 2026"', category:'Content', group:'ระยะยาว', date:'2026-03-20', related:['Content','Website Operation'], pct:100, notes:[
-      {id:401, date:'2026-03-09', text:'เขียน outline เสร็จแล้ว'},
-      {id:402, date:'2026-03-12', text:'บทความเสร็จสมบูรณ์ ส่ง editor แล้ว'},
-    ]},
-  ];
-  state.goals['w1'] = [{text:'ส่ง Banner ให้ทีม Social ภายใน 14 มี.ค.', done:false},{text:'อัปเดตเว็บไซต์ให้เสร็จก่อนสิ้นสัปดาห์', done:true}];
-  save();
-}
-
-render();
+// Start app
+initApp();
 </script>
 </body>
 </html>
