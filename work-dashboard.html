@@ -1,0 +1,1567 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Work Dashboard — Backend</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3d;
+    --accent: #7c6af7;
+    --accent2: #f76a8a;
+    --accent3: #6af7c8;
+    --text: #e8e8f4;
+    --text-muted: #7878a0;
+    --web: #6af7c8;
+    --graphics: #f7c76a;
+    --social: #f76a8a;
+    --content: #a76af7;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Sarabun', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.4;
+  }
+
+  /* HEADER */
+  header {
+    padding: 16px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+
+  .logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .week-selector {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+  .week-selector strong { color: var(--text); }
+
+  .week-nav {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 0 4px;
+    transition: color 0.2s;
+  }
+  .week-nav:hover { color: var(--accent); }
+
+  .header-right {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .btn-add {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 18px;
+    font-family: 'Sarabun', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-add:hover { background: #9580ff; transform: translateY(-1px); }
+
+  .btn-export {
+    background: var(--accent3);
+    color: #0a0a0f;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 18px;
+    font-family: 'Sarabun', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-export:hover { background: #4de8a8; transform: translateY(-1px); }
+
+  /* LAYOUT */
+  .main {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    min-height: calc(100vh - 65px);
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 0;
+    position: sticky;
+    top: 65px;
+    height: calc(100vh - 65px);
+    overflow-y: auto;
+  }
+
+  .sidebar-section { margin-bottom: 8px; }
+
+  .sidebar-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    padding: 0 20px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 14px;
+    color: var(--text-muted);
+    border-left: 3px solid transparent;
+  }
+  .sidebar-item:hover { background: var(--surface2); color: var(--text); }
+  .sidebar-item.active { background: var(--surface2); color: var(--text); border-left-color: var(--accent); }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  .count-badge {
+    margin-left: auto;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .sidebar-divider { height: 1px; background: var(--border); margin: 12px 20px; }
+
+  .weekly-goal-box {
+    margin: 16px 16px 0;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .weekly-goal-box h4 {
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    margin-bottom: 10px;
+  }
+  .goal-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .goal-check {
+    width: 14px; height: 14px;
+    border-radius: 4px;
+    border: 1.5px solid var(--border);
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .goal-check.done { background: var(--accent3); border-color: var(--accent3); }
+  .goal-check.done::after { content: '✓'; font-size: 9px; color: #000; }
+
+  .btn-add-goal {
+    width: 100%;
+    background: none;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 6px;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    font-family: 'Sarabun', sans-serif;
+    margin-top: 8px;
+    transition: all 0.2s;
+  }
+  .btn-add-goal:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* MAIN CONTENT */
+  .content { padding: 28px 32px; overflow-y: auto; }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .stat-card:nth-child(1)::before { background: var(--accent); }
+  .stat-card:nth-child(2)::before { background: var(--accent3); }
+  .stat-card:nth-child(3)::before { background: var(--social); }
+  .stat-card:nth-child(4)::before { background: var(--accent2); }
+
+  .stat-label { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; font-family: 'Space Mono', monospace; margin-bottom: 8px; }
+  .stat-value { font-size: 28px; font-weight: 700; font-family: 'Space Mono', monospace; }
+  .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  .week-progress-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .week-progress-bar h3 { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+  .big-bar { flex: 1; height: 10px; background: var(--surface2); border-radius: 10px; overflow: hidden; }
+  .big-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent3));
+    border-radius: 10px;
+    transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+  }
+  .big-pct { font-family: 'Space Mono', monospace; font-size: 18px; font-weight: 700; color: var(--accent3); white-space: nowrap; }
+
+  .category-section { margin-bottom: 32px; }
+
+  .category-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .category-stripe { width: 4px; height: 22px; border-radius: 2px; }
+  .category-title { font-size: 15px; font-weight: 600; letter-spacing: 0.5px; }
+  .category-pct { margin-left: auto; font-family: 'Space Mono', monospace; font-size: 12px; color: var(--text-muted); }
+  .category-mini-bar { flex: 0 0 80px; height: 4px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .category-mini-fill { height: 100%; border-radius: 4px; }
+
+  /* TASK CARDS */
+  .tasks-grid { display: flex; flex-direction: column; gap: 10px; }
+
+  .task-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    align-items: start;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .task-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+  }
+  .task-card:hover { border-color: var(--accent); transform: translateX(2px); }
+  .task-card.done { opacity: 0.5; }
+
+  .task-top { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 6px; }
+
+  .task-checkbox {
+    width: 18px; height: 18px;
+    border-radius: 5px;
+    border: 1.5px solid var(--border);
+    flex-shrink: 0;
+    margin-top: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .task-checkbox.checked { border-color: var(--accent3); background: var(--accent3); }
+  .task-checkbox.checked::after { content: '✓'; font-size: 11px; color: #000; font-weight: 700; }
+
+  .task-name { font-size: 14px; font-weight: 600; line-height: 1.4; }
+
+  .task-desc { font-size: 12px; color: var(--text-muted); margin-left: 28px; line-height: 1.5; margin-bottom: 10px; }
+
+  .task-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 28px;
+    flex-wrap: wrap;
+  }
+
+  .task-date { font-size: 11px; color: var(--text-muted); font-family: 'Space Mono', monospace; display: flex; align-items: center; gap: 4px; }
+
+  .task-group { font-size: 10px; padding: 2px 8px; border-radius: 20px; border: 1px solid var(--border); color: var(--text-muted); letter-spacing: 0.5px; }
+
+  .task-positions { display: flex; gap: 4px; flex-wrap: wrap; margin-left: 28px; margin-top: 6px; }
+
+  .pos-tag { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600; letter-spacing: 0.5px; }
+
+  /* NOTE BUTTON ON CARD */
+  .btn-notes {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-family: 'Sarabun', sans-serif;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .btn-notes:hover { border-color: var(--accent); color: var(--accent); background: rgba(124,106,247,0.08); }
+
+  .note-count-chip {
+    background: var(--accent);
+    color: white;
+    border-radius: 10px;
+    padding: 0 5px;
+    font-size: 10px;
+    font-family: 'Space Mono', monospace;
+    line-height: 16px;
+  }
+
+  /* PROGRESS SECTION (right side of card) */
+  .task-progress-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 90px; }
+
+  .pct-number { font-family: 'Space Mono', monospace; font-size: 20px; font-weight: 700; }
+
+  .progress-bar { width: 90px; height: 6px; background: var(--surface2); border-radius: 6px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 6px; transition: width 0.6s ease; }
+
+  .pct-controls { display: flex; gap: 4px; }
+  .pct-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    width: 24px; height: 24px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pct-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .status-badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-family: 'Space Mono', monospace; }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .modal-overlay.show { opacity: 1; pointer-events: all; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    width: 540px;
+    max-width: 95vw;
+    transform: translateY(20px);
+    transition: transform 0.2s;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-overlay.show .modal { transform: translateY(0); }
+
+  .modal-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .modal-close { background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; transition: color 0.2s; }
+  .modal-close:hover { color: var(--text); }
+
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; letter-spacing: 0.5px; font-family: 'Space Mono', monospace; }
+  .form-input, .form-select, .form-textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'Sarabun', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--accent); }
+  .form-textarea { resize: vertical; min-height: 80px; }
+
+  .checkbox-group { display: flex; flex-wrap: wrap; gap: 8px; }
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    transition: all 0.15s;
+  }
+  .checkbox-label:hover { border-color: var(--accent); }
+  .checkbox-label input { accent-color: var(--accent); }
+
+  .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+  .btn-cancel {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 20px;
+    color: var(--text-muted);
+    font-family: 'Sarabun', sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-cancel:hover { border-color: var(--text-muted); color: var(--text); }
+  .btn-save {
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    padding: 9px 24px;
+    color: white;
+    font-family: 'Sarabun', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-save:hover { background: #9580ff; }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-muted);
+    font-size: 14px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+  }
+
+  .filter-row { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+  .filter-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: 'Sarabun', sans-serif;
+  }
+  .filter-btn:hover, .filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(124,106,247,0.1); }
+
+  .section-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+
+  .goal-modal-list { display: flex; flex-direction: column; gap: 8px; }
+  .goal-input-row { display: flex; gap: 8px; }
+  .goal-input-row .form-input { flex: 1; }
+
+  /* NOTES MODAL */
+  .notes-task-info {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+  }
+  .notes-task-name { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .notes-task-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  .notes-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; min-height: 60px; }
+
+  .note-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    position: relative;
+  }
+  .note-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .note-item-date {
+    font-size: 11px;
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+  }
+  .note-item-text { font-size: 13px; line-height: 1.6; color: var(--text); }
+  .note-delete-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0 4px;
+    transition: color 0.15s;
+    line-height: 1;
+  }
+  .note-delete-btn:hover { color: var(--social); }
+
+  .notes-empty { text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px; border: 1px dashed var(--border); border-radius: 8px; }
+
+  .notes-add-section {
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+  .notes-add-section .form-label { margin-bottom: 8px; }
+  .notes-date-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 10px; }
+  .notes-date-row .form-group { flex: 0 0 160px; margin-bottom: 0; }
+  .notes-date-row .form-input { padding: 8px 12px; font-size: 13px; }
+
+  /* EXPORT MODAL */
+  .export-modal .modal { width: 520px; }
+
+  .export-section-title {
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+
+  .date-range-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+
+  .export-preview {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+  }
+  .export-preview-label { font-size: 11px; color: var(--text-muted); font-family: 'Space Mono', monospace; margin-bottom: 6px; }
+  .export-preview-value { font-size: 20px; font-weight: 700; font-family: 'Space Mono', monospace; color: var(--accent3); }
+  .export-preview-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  .export-options { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  .export-opt {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 14px;
+    transition: all 0.15s;
+  }
+  .export-opt:hover { border-color: var(--accent3); }
+  .export-opt input { accent-color: var(--accent3); }
+
+  .btn-export-do {
+    background: var(--accent3);
+    border: none;
+    border-radius: 8px;
+    padding: 10px 28px;
+    color: #0a0a0f;
+    font-family: 'Sarabun', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-export-do:hover { background: #4de8a8; }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .task-card { animation: fadeIn 0.3s ease both; }
+  .note-item { animation: fadeIn 0.2s ease both; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">// WORK DASHBOARD</div>
+  <div class="week-selector">
+    <button class="week-nav" onclick="changeWeek(-1)">‹</button>
+    <span>สัปดาห์ที่ <strong id="week-num">1</strong> — <span id="week-range"></span></span>
+    <button class="week-nav" onclick="changeWeek(1)">›</button>
+  </div>
+  <div class="header-right">
+    <button class="btn-export" onclick="openExportModal()">↓ Export Excel</button>
+    <button class="btn-add" onclick="openModal()">＋ เพิ่มงาน</button>
+    <button class="btn-add" style="background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);" onclick="openGoalModal()">🎯 ตั้ง Goal</button>
+  </div>
+</header>
+
+<div class="main">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">ภาพรวม</div>
+      <div class="sidebar-item active" onclick="filterCategory('all', this)">
+        <div class="dot" style="background:var(--accent)"></div>
+        งานทั้งหมด
+        <span class="count-badge" id="count-all">0</span>
+      </div>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">ตำแหน่งงาน</div>
+      <div class="sidebar-item" onclick="filterCategory('Website Operation', this)">
+        <div class="dot" style="background:var(--web)"></div>
+        Website Operation
+        <span class="count-badge" id="count-web">0</span>
+      </div>
+      <div class="sidebar-item" onclick="filterCategory('Graphics', this)">
+        <div class="dot" style="background:var(--graphics)"></div>
+        Graphics
+        <span class="count-badge" id="count-graphics">0</span>
+      </div>
+      <div class="sidebar-item" onclick="filterCategory('Social Media', this)">
+        <div class="dot" style="background:var(--social)"></div>
+        Social Media
+        <span class="count-badge" id="count-social">0</span>
+      </div>
+      <div class="sidebar-item" onclick="filterCategory('Content', this)">
+        <div class="dot" style="background:var(--content)"></div>
+        Content
+        <span class="count-badge" id="count-content">0</span>
+      </div>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">สถานะ</div>
+      <div class="sidebar-item" onclick="filterStatus('inprogress', this)">
+        <div class="dot" style="background:var(--accent2)"></div>
+        กำลังดำเนินการ
+        <span class="count-badge" id="count-inprogress">0</span>
+      </div>
+      <div class="sidebar-item" onclick="filterStatus('done', this)">
+        <div class="dot" style="background:var(--accent3)"></div>
+        เสร็จแล้ว
+        <span class="count-badge" id="count-done">0</span>
+      </div>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="weekly-goal-box">
+      <h4>🎯 WEEKLY GOALS</h4>
+      <div id="goal-list"></div>
+      <button class="btn-add-goal" onclick="openGoalModal()">+ เพิ่ม Goal</button>
+    </div>
+  </aside>
+
+  <!-- CONTENT -->
+  <main class="content">
+    <div class="stats-row" id="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">TOTAL TASKS</div>
+        <div class="stat-value" id="stat-total">0</div>
+        <div class="stat-sub">งานทั้งหมด</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">COMPLETED</div>
+        <div class="stat-value" id="stat-done">0</div>
+        <div class="stat-sub">เสร็จแล้ว</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">IN PROGRESS</div>
+        <div class="stat-value" id="stat-progress">0</div>
+        <div class="stat-sub">กำลังดำเนินการ</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">OVERALL</div>
+        <div class="stat-value" id="stat-pct">0%</div>
+        <div class="stat-sub">ความคืบหน้าสัปดาห์นี้</div>
+      </div>
+    </div>
+
+    <div class="week-progress-bar">
+      <h3>ความคืบหน้ารวมสัปดาห์นี้</h3>
+      <div class="big-bar">
+        <div class="big-bar-fill" id="week-bar" style="width:0%"></div>
+      </div>
+      <div class="big-pct" id="week-pct">0%</div>
+    </div>
+
+    <div class="filter-row">
+      <span style="font-size:12px;color:var(--text-muted);margin-right:4px;">จัดกลุ่ม:</span>
+      <button class="filter-btn active" onclick="filterGroup('all', this)">ทั้งหมด</button>
+      <button class="filter-btn" onclick="filterGroup('ด่วน', this)">🔴 ด่วน</button>
+      <button class="filter-btn" onclick="filterGroup('ปกติ', this)">🟡 ปกติ</button>
+      <button class="filter-btn" onclick="filterGroup('ระยะยาว', this)">🔵 ระยะยาว</button>
+    </div>
+
+    <div id="tasks-container"></div>
+  </main>
+</div>
+
+<!-- ADD TASK MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-title">
+      เพิ่มงานใหม่
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ชื่องาน *</label>
+      <input class="form-input" id="f-name" placeholder="ชื่องาน...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">รายละเอียดงาน</label>
+      <textarea class="form-textarea" id="f-desc" placeholder="รายละเอียด..."></textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="form-group">
+        <label class="form-label">ตำแหน่งงานหลัก *</label>
+        <select class="form-select" id="f-cat">
+          <option value="Website Operation">Website Operation</option>
+          <option value="Graphics">Graphics</option>
+          <option value="Social Media">Social Media</option>
+          <option value="Content">Content</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">จัดกลุ่มงาน</label>
+        <select class="form-select" id="f-group">
+          <option value="ด่วน">🔴 ด่วน</option>
+          <option value="ปกติ">🟡 ปกติ</option>
+          <option value="ระยะยาว">🔵 ระยะยาว</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">วันกำหนดส่ง</label>
+      <input class="form-input" id="f-date" type="date">
+    </div>
+    <div class="form-group">
+      <label class="form-label">ตำแหน่งที่เกี่ยวข้อง</label>
+      <div class="checkbox-group">
+        <label class="checkbox-label"><input type="checkbox" value="Website Operation"> Website Op</label>
+        <label class="checkbox-label"><input type="checkbox" value="Graphics"> Graphics</label>
+        <label class="checkbox-label"><input type="checkbox" value="Social Media"> Social Media</label>
+        <label class="checkbox-label"><input type="checkbox" value="Content"> Content</label>
+        <label class="checkbox-label"><input type="checkbox" value="Management"> Management</label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ความคืบหน้าเริ่มต้น (%)</label>
+      <input class="form-input" id="f-pct" type="number" min="0" max="100" value="0">
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn-save" onclick="saveTask()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- GOAL MODAL -->
+<div class="modal-overlay" id="goal-modal">
+  <div class="modal" style="width:420px">
+    <div class="modal-title">
+      🎯 ตั้ง Goal สัปดาห์นี้
+      <button class="modal-close" onclick="closeGoalModal()">✕</button>
+    </div>
+    <div class="goal-modal-list" id="goal-inputs"></div>
+    <button class="btn-cancel" style="width:100%;margin-top:12px" onclick="addGoalInput()">+ เพิ่ม Goal</button>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeGoalModal()">ยกเลิก</button>
+      <button class="btn-save" onclick="saveGoals()">บันทึก Goals</button>
+    </div>
+  </div>
+</div>
+
+<!-- NOTES MODAL -->
+<div class="modal-overlay" id="notes-modal">
+  <div class="modal" style="width:600px">
+    <div class="modal-title">
+      <span>📝 บันทึกความคืบหน้า</span>
+      <button class="modal-close" onclick="closeNotesModal()">✕</button>
+    </div>
+
+    <!-- Task info summary -->
+    <div class="notes-task-info" id="notes-task-info">
+      <div class="notes-task-name" id="notes-task-name">—</div>
+      <div class="notes-task-meta" id="notes-task-meta"></div>
+    </div>
+
+    <!-- Notes timeline -->
+    <div style="font-size:12px;color:var(--text-muted);font-family:'Space Mono',monospace;letter-spacing:1px;margin-bottom:10px;">PROGRESS LOG</div>
+    <div class="notes-list" id="notes-list"></div>
+
+    <!-- Add note form -->
+    <div class="notes-add-section">
+      <div class="form-label">เพิ่มบันทึกใหม่</div>
+      <div class="notes-date-row">
+        <div class="form-group">
+          <label class="form-label">วันที่</label>
+          <input class="form-input" id="note-date" type="date">
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <textarea class="form-textarea" id="note-text" placeholder="บันทึกความคืบหน้า เช่น ทำอะไรไปบ้าง มีอุปสรรคอะไร..." style="min-height:90px"></textarea>
+      </div>
+      <div class="modal-footer" style="margin-top:14px">
+        <button class="btn-cancel" onclick="closeNotesModal()">ปิด</button>
+        <button class="btn-save" onclick="addNote()">+ เพิ่มบันทึก</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EXPORT MODAL -->
+<div class="modal-overlay export-modal" id="export-modal">
+  <div class="modal" style="width:500px">
+    <div class="modal-title">
+      ↓ Export เป็น Excel
+      <button class="modal-close" onclick="closeExportModal()">✕</button>
+    </div>
+
+    <div class="export-section-title">เลือกช่วงวันที่</div>
+    <div class="date-range-row">
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">วันที่เริ่มต้น</label>
+        <input class="form-input" id="exp-from" type="date">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">วันที่สิ้นสุด</label>
+        <input class="form-input" id="exp-to" type="date">
+      </div>
+    </div>
+
+    <!-- Quick select buttons -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+      <button class="filter-btn" onclick="setExportRange('thisweek')">สัปดาห์นี้</button>
+      <button class="filter-btn" onclick="setExportRange('lastweek')">สัปดาห์ที่แล้ว</button>
+      <button class="filter-btn" onclick="setExportRange('thismonth')">เดือนนี้</button>
+      <button class="filter-btn" onclick="setExportRange('all')">ทั้งหมด</button>
+    </div>
+
+    <div class="export-section-title">ข้อมูลที่จะ Export</div>
+    <div class="export-options">
+      <label class="export-opt"><input type="checkbox" id="exp-tasks" checked> งาน (Tasks)</label>
+      <label class="export-opt"><input type="checkbox" id="exp-notes" checked> บันทึกความคืบหน้า</label>
+      <label class="export-opt"><input type="checkbox" id="exp-goals"> Weekly Goals</label>
+    </div>
+
+    <!-- Preview count -->
+    <div class="export-preview" id="export-preview">
+      <div class="export-preview-label">TASKS ที่จะ EXPORT</div>
+      <div class="export-preview-value" id="exp-count">0</div>
+      <div class="export-preview-sub" id="exp-count-sub">กรุณาเลือกช่วงวันที่</div>
+    </div>
+
+    <div class="modal-footer" style="margin-top:8px">
+      <button class="btn-cancel" onclick="closeExportModal()">ยกเลิก</button>
+      <button class="btn-export-do" onclick="doExport()">↓ Export .xlsx</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const CAT_COLORS = {
+  'Website Operation': 'var(--web)',
+  'Graphics': 'var(--graphics)',
+  'Social Media': 'var(--social)',
+  'Content': 'var(--content)',
+};
+
+const POS_BG = {
+  'Website Operation': 'rgba(106,247,200,0.15)',
+  'Graphics': 'rgba(247,199,106,0.15)',
+  'Social Media': 'rgba(247,106,138,0.15)',
+  'Content': 'rgba(167,106,247,0.15)',
+  'Management': 'rgba(124,106,247,0.15)',
+};
+const POS_COLOR = {
+  'Website Operation': 'var(--web)',
+  'Graphics': 'var(--graphics)',
+  'Social Media': 'var(--social)',
+  'Content': 'var(--content)',
+  'Management': 'var(--accent)',
+};
+
+let state = {
+  week: 1,
+  tasks: [],
+  goals: {},
+  filterCat: 'all',
+  filterGroup: 'all',
+  filterStatus: null,
+};
+
+try {
+  const saved = localStorage.getItem('wdash');
+  if (saved) { const s = JSON.parse(saved); state = {...state, ...s}; }
+} catch(e){}
+
+// Migrate old tasks without notes array
+state.tasks.forEach(t => { if (!t.notes) t.notes = []; });
+
+const save = () => {
+  try { localStorage.setItem('wdash', JSON.stringify(state)); } catch(e){}
+};
+
+// --- WEEK ---
+const getWeekDates = (w) => {
+  const now = new Date();
+  const base = new Date(now);
+  base.setDate(base.getDate() - base.getDay() + 1);
+  base.setDate(base.getDate() + (w - 1) * 7);
+  const end = new Date(base);
+  end.setDate(end.getDate() + 6);
+  const fmt = d => `${d.getDate()}/${d.getMonth()+1}`;
+  return `${fmt(base)} – ${fmt(end)}`;
+};
+
+const getWeekDateObj = (w) => {
+  const now = new Date();
+  const base = new Date(now);
+  base.setDate(base.getDate() - base.getDay() + 1);
+  base.setDate(base.getDate() + (w - 1) * 7);
+  base.setHours(0,0,0,0);
+  const end = new Date(base);
+  end.setDate(end.getDate() + 6);
+  end.setHours(23,59,59,999);
+  return { start: base, end };
+};
+
+const toDateStr = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+};
+
+const updateWeekDisplay = () => {
+  document.getElementById('week-num').textContent = state.week;
+  document.getElementById('week-range').textContent = getWeekDates(state.week);
+};
+
+const changeWeek = (dir) => {
+  state.week += dir;
+  if (state.week < 1) state.week = 1;
+  updateWeekDisplay();
+  render();
+};
+
+// --- FILTER ---
+const filterCategory = (cat, el) => {
+  state.filterCat = cat;
+  state.filterStatus = null;
+  document.querySelectorAll('.sidebar-item').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+  render();
+};
+const filterStatus = (s, el) => {
+  state.filterStatus = s;
+  state.filterCat = 'all';
+  document.querySelectorAll('.sidebar-item').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+  render();
+};
+const filterGroup = (g, el) => {
+  state.filterGroup = g;
+  document.querySelectorAll('.filter-btn').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+  render();
+};
+
+// --- ADD TASK MODAL ---
+const openModal = () => document.getElementById('modal').classList.add('show');
+const closeModal = () => document.getElementById('modal').classList.remove('show');
+
+const saveTask = () => {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { alert('กรุณาใส่ชื่องาน'); return; }
+  const related = [...document.querySelectorAll('.checkbox-group input:checked')].map(e => e.value);
+  state.tasks.push({
+    id: Date.now(),
+    week: state.week,
+    name,
+    desc: document.getElementById('f-desc').value.trim(),
+    category: document.getElementById('f-cat').value,
+    group: document.getElementById('f-group').value,
+    date: document.getElementById('f-date').value,
+    related,
+    pct: parseInt(document.getElementById('f-pct').value) || 0,
+    notes: [],
+  });
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-desc').value = '';
+  document.getElementById('f-pct').value = 0;
+  document.getElementById('f-date').value = '';
+  document.querySelectorAll('.checkbox-group input').forEach(e => e.checked = false);
+  save();
+  closeModal();
+  render();
+};
+
+// --- GOAL MODAL ---
+let tmpGoals = [];
+const openGoalModal = () => {
+  const key = `w${state.week}`;
+  tmpGoals = [...(state.goals[key] || [{text:'', done: false}])];
+  renderGoalInputs();
+  document.getElementById('goal-modal').classList.add('show');
+};
+const closeGoalModal = () => document.getElementById('goal-modal').classList.remove('show');
+const addGoalInput = () => { tmpGoals.push({text:'', done: false}); renderGoalInputs(); };
+const renderGoalInputs = () => {
+  document.getElementById('goal-inputs').innerHTML = tmpGoals.map((g, i) => `
+    <div class="goal-input-row">
+      <input class="form-input" placeholder="Goal ${i+1}..." value="${g.text}" oninput="tmpGoals[${i}].text=this.value">
+      <button class="btn-cancel" onclick="tmpGoals.splice(${i},1);renderGoalInputs()" style="padding:9px 12px">✕</button>
+    </div>
+  `).join('');
+};
+const saveGoals = () => {
+  const key = `w${state.week}`;
+  state.goals[key] = tmpGoals.filter(g => g.text.trim());
+  save();
+  closeGoalModal();
+  render();
+};
+
+// --- PROGRESS ---
+const adjustPct = (id, delta) => {
+  const t = state.tasks.find(t => t.id === id);
+  if (!t) return;
+  t.pct = Math.max(0, Math.min(100, (t.pct || 0) + delta));
+  save();
+  render();
+};
+
+const toggleTask = (id) => {
+  const t = state.tasks.find(t => t.id === id);
+  if (!t) return;
+  t.pct = t.pct >= 100 ? 0 : 100;
+  save();
+  render();
+};
+
+const deleteTask = (id) => {
+  if (!confirm('ลบงานนี้?')) return;
+  state.tasks = state.tasks.filter(t => t.id !== id);
+  save();
+  render();
+};
+
+// --- STATUS ---
+const getStatus = (pct) => {
+  if (pct >= 100) return { label: 'DONE', color: 'var(--accent3)', bg: 'rgba(106,247,200,0.1)' };
+  if (pct >= 50) return { label: 'IN PROGRESS', color: 'var(--graphics)', bg: 'rgba(247,199,106,0.1)' };
+  if (pct > 0) return { label: 'STARTED', color: 'var(--accent)', bg: 'rgba(124,106,247,0.1)' };
+  return { label: 'TODO', color: 'var(--text-muted)', bg: 'var(--surface2)' };
+};
+
+// --- NOTES MODAL ---
+let currentNoteTaskId = null;
+
+const openNotesModal = (taskId) => {
+  currentNoteTaskId = taskId;
+  const t = state.tasks.find(t => t.id === taskId);
+  if (!t) return;
+
+  // Task info
+  document.getElementById('notes-task-name').textContent = t.name;
+  const status = getStatus(t.pct || 0);
+  const color = CAT_COLORS[t.category] || 'var(--accent)';
+  document.getElementById('notes-task-meta').innerHTML = `
+    <span class="status-badge" style="background:${status.bg};color:${status.color}">${status.label}</span>
+    <span style="font-size:11px;color:${color};font-family:'Space Mono',monospace">${t.category}</span>
+    <span style="font-size:11px;color:var(--text-muted);font-family:'Space Mono',monospace">${t.pct||0}%</span>
+  `;
+
+  // Default date = today
+  document.getElementById('note-date').value = toDateStr(new Date());
+  document.getElementById('note-text').value = '';
+
+  renderNotesList(t);
+  document.getElementById('notes-modal').classList.add('show');
+};
+
+const closeNotesModal = () => {
+  document.getElementById('notes-modal').classList.remove('show');
+  currentNoteTaskId = null;
+};
+
+const renderNotesList = (t) => {
+  const notes = t.notes || [];
+  if (!notes.length) {
+    document.getElementById('notes-list').innerHTML = `<div class="notes-empty">ยังไม่มีบันทึก<br><small>เพิ่มบันทึกแรกด้านล่าง</small></div>`;
+    return;
+  }
+  // Sort by date desc
+  const sorted = [...notes].sort((a, b) => new Date(b.date) - new Date(a.date));
+  document.getElementById('notes-list').innerHTML = sorted.map(n => {
+    const d = new Date(n.date);
+    const dateLabel = d.toLocaleDateString('th-TH', {weekday:'short', day:'numeric', month:'short', year:'numeric'});
+    return `
+      <div class="note-item">
+        <div class="note-item-header">
+          <div class="note-item-date">📅 ${dateLabel}</div>
+          <button class="note-delete-btn" onclick="deleteNote(${n.id})" title="ลบบันทึกนี้">✕</button>
+        </div>
+        <div class="note-item-text">${n.text.replace(/\n/g,'<br>')}</div>
+      </div>
+    `;
+  }).join('');
+};
+
+const addNote = () => {
+  const text = document.getElementById('note-text').value.trim();
+  const date = document.getElementById('note-date').value;
+  if (!text) { alert('กรุณาใส่ข้อความบันทึก'); return; }
+  if (!date) { alert('กรุณาเลือกวันที่'); return; }
+  if (currentNoteTaskId === null) return;
+
+  const t = state.tasks.find(t => t.id === currentNoteTaskId);
+  if (!t) return;
+  if (!t.notes) t.notes = [];
+
+  t.notes.push({ id: Date.now(), date, text });
+  save();
+  render();
+
+  document.getElementById('note-text').value = '';
+  document.getElementById('note-date').value = toDateStr(new Date());
+  renderNotesList(t);
+};
+
+const deleteNote = (noteId) => {
+  if (!confirm('ลบบันทึกนี้?')) return;
+  const t = state.tasks.find(t => t.id === currentNoteTaskId);
+  if (!t) return;
+  t.notes = t.notes.filter(n => n.id !== noteId);
+  save();
+  render();
+  renderNotesList(t);
+};
+
+// --- EXPORT MODAL ---
+const openExportModal = () => {
+  // Default: current week range
+  setExportRange('thisweek');
+  document.getElementById('export-modal').classList.add('show');
+  updateExportPreview();
+};
+const closeExportModal = () => document.getElementById('export-modal').classList.remove('show');
+
+const setExportRange = (preset) => {
+  const now = new Date();
+  let from, to;
+
+  if (preset === 'thisweek') {
+    const mon = new Date(now);
+    mon.setDate(now.getDate() - now.getDay() + 1);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    from = toDateStr(mon);
+    to = toDateStr(sun);
+  } else if (preset === 'lastweek') {
+    const mon = new Date(now);
+    mon.setDate(now.getDate() - now.getDay() - 6);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    from = toDateStr(mon);
+    to = toDateStr(sun);
+  } else if (preset === 'thismonth') {
+    from = toDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
+    to = toDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  } else if (preset === 'all') {
+    from = '2020-01-01';
+    to = '2099-12-31';
+  }
+
+  document.getElementById('exp-from').value = from;
+  document.getElementById('exp-to').value = to;
+  updateExportPreview();
+};
+
+const getExportTasks = () => {
+  const from = document.getElementById('exp-from').value;
+  const to = document.getElementById('exp-to').value;
+  if (!from || !to) return [];
+
+  const fromD = new Date(from + 'T00:00:00');
+  const toD = new Date(to + 'T23:59:59');
+
+  return state.tasks.filter(t => {
+    // Check by due date if available
+    if (t.date) {
+      const td = new Date(t.date + 'T00:00:00');
+      return td >= fromD && td <= toD;
+    }
+    // Otherwise check by week date range
+    const wr = getWeekDateObj(t.week);
+    return wr.start <= toD && wr.end >= fromD;
+  });
+};
+
+const updateExportPreview = () => {
+  const tasks = getExportTasks();
+  document.getElementById('exp-count').textContent = tasks.length;
+  const from = document.getElementById('exp-from').value;
+  const to = document.getElementById('exp-to').value;
+  if (from && to) {
+    const fmtDate = s => new Date(s+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
+    document.getElementById('exp-count-sub').textContent = `${fmtDate(from)} — ${fmtDate(to)}`;
+  } else {
+    document.getElementById('exp-count-sub').textContent = 'กรุณาเลือกช่วงวันที่';
+  }
+};
+
+// Attach live update to date inputs
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('exp-from').addEventListener('change', updateExportPreview);
+  document.getElementById('exp-to').addEventListener('change', updateExportPreview);
+});
+
+const doExport = () => {
+  const tasks = getExportTasks();
+  if (!tasks.length) { alert('ไม่มีงานในช่วงวันที่ที่เลือก'); return; }
+
+  const inclNotes = document.getElementById('exp-notes').checked;
+  const inclGoals = document.getElementById('exp-goals').checked;
+
+  const wb = XLSX.utils.book_new();
+
+  // ---- Sheet 1: Tasks ----
+  const taskHeaders = ['สัปดาห์ที่', 'ชื่องาน', 'รายละเอียดงาน', 'หมวดหมู่', 'กลุ่ม', 'วันกำหนดส่ง', 'สถานะ', 'ความคืบหน้า (%)', 'ตำแหน่งที่เกี่ยวข้อง'];
+  if (inclNotes) taskHeaders.push('บันทึกความคืบหน้า');
+
+  const taskRows = tasks.map(t => {
+    const status = getStatus(t.pct || 0).label;
+    const dateStr = t.date ? new Date(t.date+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'}) : '';
+    const related = (t.related || []).join(', ');
+    const row = [t.week, t.name, t.desc||'', t.category, t.group, dateStr, status, t.pct||0, related];
+    if (inclNotes) {
+      const notesText = (t.notes || [])
+        .sort((a,b) => new Date(a.date)-new Date(b.date))
+        .map(n => {
+          const d = new Date(n.date+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
+          return `[${d}] ${n.text}`;
+        })
+        .join('\n\n');
+      row.push(notesText);
+    }
+    return row;
+  });
+
+  const wsData = [taskHeaders, ...taskRows];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // Column widths
+  ws['!cols'] = [
+    {wch:10},{wch:35},{wch:35},{wch:20},{wch:10},{wch:18},{wch:14},{wch:16},{wch:30},
+    ...(inclNotes ? [{wch:50}] : [])
+  ];
+
+  // Style header row
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let c = range.s.c; c <= range.e.c; c++) {
+    const cell = ws[XLSX.utils.encode_cell({r:0, c})];
+    if (cell) {
+      cell.s = {
+        font: {bold: true, color: {rgb: 'FFFFFF'}},
+        fill: {fgColor: {rgb: '7C6AF7'}},
+        alignment: {horizontal: 'center', wrapText: true}
+      };
+    }
+  }
+
+  // Wrap text for note cells
+  if (inclNotes) {
+    for (let r = 1; r <= taskRows.length; r++) {
+      const cell = ws[XLSX.utils.encode_cell({r, c: taskHeaders.length-1})];
+      if (cell) cell.s = {alignment: {wrapText: true, vertical: 'top'}};
+    }
+  }
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Tasks');
+
+  // ---- Sheet 2: Notes (separate sheet) ----
+  if (inclNotes) {
+    const noteHeaders = ['สัปดาห์ที่', 'ชื่องาน', 'หมวดหมู่', 'วันที่บันทึก', 'บันทึกความคืบหน้า'];
+    const noteRows = [];
+    tasks.forEach(t => {
+      (t.notes || [])
+        .sort((a,b) => new Date(a.date)-new Date(b.date))
+        .forEach(n => {
+          const d = new Date(n.date+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'});
+          noteRows.push([t.week, t.name, t.category, d, n.text]);
+        });
+    });
+    if (noteRows.length) {
+      const wsNotes = XLSX.utils.aoa_to_sheet([noteHeaders, ...noteRows]);
+      wsNotes['!cols'] = [{wch:10},{wch:35},{wch:20},{wch:20},{wch:60}];
+      XLSX.utils.book_append_sheet(wb, wsNotes, 'Progress Log');
+    }
+  }
+
+  // ---- Sheet 3: Goals ----
+  if (inclGoals) {
+    const goalHeaders = ['สัปดาห์ที่', 'Goal', 'สถานะ'];
+    const goalRows = [];
+    Object.entries(state.goals).forEach(([key, goals]) => {
+      const w = parseInt(key.replace('w',''));
+      goals.forEach(g => {
+        goalRows.push([w, g.text, g.done ? 'เสร็จแล้ว' : 'ยังไม่เสร็จ']);
+      });
+    });
+    if (goalRows.length) {
+      const wsGoals = XLSX.utils.aoa_to_sheet([goalHeaders, ...goalRows]);
+      wsGoals['!cols'] = [{wch:10},{wch:50},{wch:15}];
+      XLSX.utils.book_append_sheet(wb, wsGoals, 'Weekly Goals');
+    }
+  }
+
+  // File name with date range
+  const from = document.getElementById('exp-from').value;
+  const to = document.getElementById('exp-to').value;
+  const fileName = `WorkDashboard_${from}_to_${to}.xlsx`;
+
+  XLSX.writeFile(wb, fileName);
+  closeExportModal();
+};
+
+// --- RENDER ---
+const render = () => {
+  updateWeekDisplay();
+
+  const weekTasks = state.tasks.filter(t => t.week === state.week);
+  const total = weekTasks.length;
+  const done = weekTasks.filter(t => t.pct >= 100).length;
+  const inprog = weekTasks.filter(t => t.pct > 0 && t.pct < 100).length;
+  const avgPct = total ? Math.round(weekTasks.reduce((s, t) => s + (t.pct || 0), 0) / total) : 0;
+
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-done').textContent = done;
+  document.getElementById('stat-progress').textContent = inprog;
+  document.getElementById('stat-pct').textContent = avgPct + '%';
+  document.getElementById('week-bar').style.width = avgPct + '%';
+  document.getElementById('week-pct').textContent = avgPct + '%';
+
+  document.getElementById('count-all').textContent = total;
+  ['Website Operation','Graphics','Social Media','Content'].forEach(cat => {
+    const id = {'Website Operation':'web','Graphics':'graphics','Social Media':'social','Content':'content'}[cat];
+    document.getElementById('count-'+id).textContent = weekTasks.filter(t=>t.category===cat).length;
+  });
+  document.getElementById('count-inprogress').textContent = inprog;
+  document.getElementById('count-done').textContent = done;
+
+  const key = `w${state.week}`;
+  const goals = state.goals[key] || [];
+  document.getElementById('goal-list').innerHTML = goals.length ? goals.map((g, i) => `
+    <div class="goal-item">
+      <div class="goal-check ${g.done ? 'done' : ''}" onclick="toggleGoal(${i})"></div>
+      <span style="${g.done ? 'text-decoration:line-through' : ''}">${g.text}</span>
+    </div>
+  `).join('') : '<div style="font-size:12px;color:var(--text-muted)">ยังไม่มี Goal สัปดาห์นี้</div>';
+
+  let filtered = weekTasks;
+  if (state.filterCat !== 'all') filtered = filtered.filter(t => t.category === state.filterCat);
+  if (state.filterGroup !== 'all') filtered = filtered.filter(t => t.group === state.filterGroup);
+  if (state.filterStatus === 'done') filtered = filtered.filter(t => t.pct >= 100);
+  if (state.filterStatus === 'inprogress') filtered = filtered.filter(t => t.pct < 100);
+
+  const CATS = ['Website Operation','Graphics','Social Media','Content'];
+  const container = document.getElementById('tasks-container');
+
+  let html = '';
+  if (state.filterCat !== 'all') {
+    html += renderCategorySection(state.filterCat, filtered);
+  } else {
+    CATS.forEach(cat => {
+      const tasks = filtered.filter(t => t.category === cat);
+      if (tasks.length) html += renderCategorySection(cat, tasks);
+    });
+  }
+  if (!filtered.length) {
+    html = `<div class="empty-state">ยังไม่มีงานในสัปดาห์นี้<br><small>กด "เพิ่มงาน" เพื่อเริ่มต้น</small></div>`;
+  }
+  container.innerHTML = html;
+};
+
+const renderCategorySection = (cat, tasks) => {
+  const avgPct = tasks.length ? Math.round(tasks.reduce((s,t) => s+(t.pct||0), 0) / tasks.length) : 0;
+  const color = CAT_COLORS[cat] || 'var(--accent)';
+  return `
+    <div class="category-section">
+      <div class="category-header">
+        <div class="category-stripe" style="background:${color}"></div>
+        <div class="category-title">${cat}</div>
+        <div class="category-mini-bar">
+          <div class="category-mini-fill" style="width:${avgPct}%;background:${color}"></div>
+        </div>
+        <div class="category-pct">${avgPct}%</div>
+      </div>
+      <div class="tasks-grid">
+        ${tasks.map(t => renderTask(t, color)).join('')}
+      </div>
+    </div>
+  `;
+};
+
+const renderTask = (t, catColor) => {
+  const pct = t.pct || 0;
+  const status = getStatus(pct);
+  const dateStr = t.date ? new Date(t.date+'T00:00:00').toLocaleDateString('th-TH', {day:'numeric',month:'short'}) : '';
+  const pctColor = pct >= 100 ? 'var(--accent3)' : pct >= 50 ? 'var(--graphics)' : pct > 0 ? 'var(--accent)' : 'var(--border)';
+  const noteCount = (t.notes || []).length;
+  const noteChip = noteCount ? `<span class="note-count-chip">${noteCount}</span>` : '';
+  return `
+    <div class="task-card ${pct>=100?'done':''}" style="--cat-color:${catColor}">
+      <style>.task-card[style*="${catColor}"]::before{background:${catColor}}</style>
+      <div>
+        <div class="task-top">
+          <div class="task-checkbox ${pct>=100?'checked':''}" onclick="toggleTask(${t.id})"></div>
+          <div class="task-name" style="${pct>=100?'text-decoration:line-through;color:var(--text-muted)':''}">${t.name}</div>
+        </div>
+        ${t.desc ? `<div class="task-desc">${t.desc}</div>` : ''}
+        <div class="task-meta">
+          ${dateStr ? `<div class="task-date">📅 ${dateStr}</div>` : ''}
+          <div class="task-group" style="border-color:${catColor}30">${t.group}</div>
+          <div class="status-badge" style="background:${status.bg};color:${status.color}">${status.label}</div>
+          <button class="btn-notes" onclick="openNotesModal(${t.id})">📝 บันทึก ${noteChip}</button>
+        </div>
+        ${t.related && t.related.length ? `
+          <div class="task-positions">
+            ${t.related.map(pos => `
+              <div class="pos-tag" style="background:${POS_BG[pos]||'rgba(124,106,247,0.1)'};color:${POS_COLOR[pos]||'var(--accent)'}">
+                ${pos}
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+      <div class="task-progress-wrap">
+        <div class="pct-number" style="color:${pctColor}">${pct}%</div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width:${pct}%;background:${pctColor}"></div>
+        </div>
+        <div class="pct-controls">
+          <button class="pct-btn" onclick="adjustPct(${t.id},-10)">−</button>
+          <button class="pct-btn" onclick="adjustPct(${t.id},10)">+</button>
+        </div>
+        <button class="pct-btn" onclick="deleteTask(${t.id})" style="width:auto;padding:0 8px;font-size:11px;color:var(--social)">ลบ</button>
+      </div>
+    </div>
+  `;
+};
+
+const toggleGoal = (i) => {
+  const key = `w${state.week}`;
+  if (!state.goals[key]) return;
+  state.goals[key][i].done = !state.goals[key][i].done;
+  save();
+  render();
+};
+
+// Demo data
+if (!state.tasks.length) {
+  state.tasks = [
+    {id:1, week:1, name:'อัปเดต Landing Page โปรโมชั่นใหม่', desc:'แก้ไข banner และ content ส่วนหัว', category:'Website Operation', group:'ด่วน', date:'2026-03-15', related:['Website Operation','Graphics'], pct:60, notes:[
+      {id:101, date:'2026-03-11', text:'เริ่มออกแบบ layout ใหม่แล้ว รอ asset จาก Graphics'},
+      {id:102, date:'2026-03-12', text:'ได้รับ banner จากทีม Graphics แล้ว เริ่ม implement'},
+    ]},
+    {id:2, week:1, name:'ออกแบบ Banner โปรโมชั่นมีนาคม', desc:'ขนาด 1200x628px สำหรับ Facebook และ IG', category:'Graphics', group:'ด่วน', date:'2026-03-14', related:['Graphics','Social Media'], pct:85, notes:[
+      {id:201, date:'2026-03-10', text:'Draft แรกเสร็จแล้ว รอ feedback จาก supervisor'},
+    ]},
+    {id:3, week:1, name:'โพสต์ Content IG สัปดาห์นี้', desc:'3 โพสต์ตามแผน content calendar', category:'Social Media', group:'ปกติ', date:'2026-03-16', related:['Social Media','Content'], pct:30, notes:[]},
+    {id:4, week:1, name:'เขียนบทความ Blog SEO', desc:'หัวข้อ "5 เทรนด์ดีไซน์ 2026"', category:'Content', group:'ระยะยาว', date:'2026-03-20', related:['Content','Website Operation'], pct:100, notes:[
+      {id:401, date:'2026-03-09', text:'เขียน outline เสร็จแล้ว'},
+      {id:402, date:'2026-03-12', text:'บทความเสร็จสมบูรณ์ ส่ง editor แล้ว'},
+    ]},
+  ];
+  state.goals['w1'] = [{text:'ส่ง Banner ให้ทีม Social ภายใน 14 มี.ค.', done:false},{text:'อัปเดตเว็บไซต์ให้เสร็จก่อนสิ้นสัปดาห์', done:true}];
+  save();
+}
+
+render();
+</script>
+</body>
+</html>
